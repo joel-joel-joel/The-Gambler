@@ -8,6 +8,7 @@ from app.services.poker_engine import (
     calculate_fold_equity,
     calculate_effective_stack,
     rule_of_2_4,
+    detect_outs,
 )
 
 
@@ -84,3 +85,56 @@ def test_rule_of_2_turn():
 def test_rule_of_2_4_cap():
     result = rule_of_2_4(outs=30, street="flop")
     assert result == 100.0
+
+
+def test_flush_draw_outs():
+    hole = ["Ah", "Kh"]
+    board = ["7h", "2h", "9c"]
+    result = detect_outs(hole, board)
+    assert result["total_outs"] == 9
+    assert any(d["draw_type"] == "flush_draw" for d in result["draws"])
+
+
+def test_open_ended_straight_draw():
+    hole = ["Jh", "Td"]
+    board = ["9c", "8d", "2h"]
+    result = detect_outs(hole, board)
+    assert any(d["draw_type"] == "open_ended_straight" for d in result["draws"])
+    straight_draw = next(
+        d for d in result["draws"] if d["draw_type"] == "open_ended_straight"
+    )
+    assert straight_draw["outs"] == 8
+
+
+def test_gutshot_straight_draw():
+    hole = ["Ah", "Kd"]
+    board = ["Qc", "Jd", "5h"]
+    result = detect_outs(hole, board)
+    assert any(d["draw_type"] == "gutshot_straight" for d in result["draws"])
+
+
+def test_overcards():
+    hole = ["Ah", "Kd"]
+    board = ["7c", "5d", "2h"]
+    result = detect_outs(hole, board)
+    assert any(d["draw_type"] == "overcards" for d in result["draws"])
+    overcard_draw = next(
+        d for d in result["draws"] if d["draw_type"] == "overcards"
+    )
+    assert overcard_draw["outs"] == 6
+
+
+def test_no_draws_on_river():
+    hole = ["Ah", "Kd"]
+    board = ["7c", "5d", "2h", "9s", "Jc"]
+    result = detect_outs(hole, board)
+    assert result["total_outs"] == 0
+
+
+def test_combo_draw():
+    # Flush draw (9) + open-ended straight draw (8) = 15+ outs (with overlap deduction)
+    hole = ["Jh", "Th"]
+    board = ["9h", "8h", "2c"]
+    result = detect_outs(hole, board)
+    # Should have both flush and straight draws, total >= 15
+    assert result["total_outs"] >= 15
