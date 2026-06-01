@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.models.database import get_db
+from app.services.review_service import generate_review, check_review_answer
 from app.services.session_service import (
     start_session,
     end_session,
@@ -90,3 +92,32 @@ async def get_session_summary(session_id: int, db: Session = Depends(get_db)):
         return {"summary": session_rec.ai_summary}
     summary = await generate_session_summary(db, session_id)
     return {"summary": summary}
+
+
+class ReviewCheckBody(BaseModel):
+    hand_index: int
+    question_index: int
+    correct_answer: float
+    user_answer: float
+    answer_type: str
+    tolerance: float
+
+
+@router.post("/api/sessions/{session_id}/review")
+def review_session(session_id: int, db: Session = Depends(get_db)):
+    """Generate a Socratic review for the session's most interesting hands."""
+    session_rec = get_session(db, session_id)
+    if not session_rec:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return generate_review(db, session_id)
+
+
+@router.post("/api/sessions/{session_id}/review/check")
+def check_review(session_id: int, body: ReviewCheckBody, db: Session = Depends(get_db)):
+    """Check a user's answer to a review question."""
+    return check_review_answer(
+        correct_answer=body.correct_answer,
+        user_answer=body.user_answer,
+        answer_type=body.answer_type,
+        tolerance=body.tolerance,
+    )
