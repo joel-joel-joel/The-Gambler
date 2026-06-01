@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Float
+from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Float, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 from datetime import datetime, timezone
 
@@ -113,6 +113,42 @@ class LeakRecord(Base):
     evidence = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+
+
+class DrillAttempt(Base):
+    __tablename__ = "drill_attempts"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(String, nullable=False, default="default")
+    skill = Column(String, nullable=False)
+    scenario = Column(Text, nullable=False)
+    correct_answer = Column(Float, nullable=False)
+    user_answer = Column(Float, nullable=False)
+    is_correct = Column(Integer, nullable=False, default=0)
+    response_time_ms = Column(Integer, nullable=False, default=0)
+    explanation = Column(Text, nullable=True)
+    source = Column(String, nullable=False, default="random")
+    session_id = Column(Integer, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+
+
+class SkillProgress(Base):
+    __tablename__ = "skill_progress"
+    __table_args__ = (UniqueConstraint("user_id", "skill", name="uq_user_skill"),)
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(String, nullable=False, default="default")
+    skill = Column(String, nullable=False)
+    total_attempts = Column(Integer, nullable=False, default=0)
+    correct_count = Column(Integer, nullable=False, default=0)
+    current_accuracy = Column(Float, nullable=False, default=0.0)
+    status = Column(String, nullable=False, default="locked")
+    streak_days = Column(Integer, nullable=False, default=0)
+    last_attempt_date = Column(String, nullable=True)
+    best_streak = Column(Integer, nullable=False, default=0)
+    avg_response_time_ms = Column(Integer, nullable=False, default=0)
+    graduated_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
 
 
 engine = create_engine(
