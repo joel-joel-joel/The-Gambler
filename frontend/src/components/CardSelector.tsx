@@ -32,18 +32,18 @@ export function CardSelector() {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex gap-4 text-sm">
-          <span>
-            Hole: {holeCards.length}/2{" "}
+          <span className="text-stone-400">
+            Hole: <span className="text-gold font-mono">{holeCards.length}/2</span>{" "}
             {holeCards.map((c) => c[0] + SUIT_SYMBOLS[c[1]]).join(" ")}
           </span>
-          <span>
-            Board: {communityCards.length}/5{" "}
+          <span className="text-stone-400">
+            Board: <span className="text-emerald-400 font-mono">{communityCards.length}/5</span>{" "}
             {communityCards.map((c) => c[0] + SUIT_SYMBOLS[c[1]]).join(" ")}
           </span>
         </div>
         <button
           onClick={handleClear}
-          className="text-sm px-3 py-1 bg-gray-700 rounded hover:bg-gray-600"
+          className="text-sm px-3 py-1 bg-surface-raised rounded hover:bg-surface-hover transition-colors duration-200 cursor-pointer"
         >
           Clear
         </button>
@@ -63,9 +63,10 @@ export function CardSelector() {
                 onClick={() => handleCardClick(card)}
                 className={`
                   w-8 h-10 text-xs font-bold rounded border flex flex-col items-center justify-center
-                  ${isHole ? "bg-blue-600 border-blue-400" : ""}
-                  ${isCommunity ? "bg-green-700 border-green-400" : ""}
-                  ${!isSelected ? "bg-gray-800 border-gray-600 hover:bg-gray-700" : ""}
+                  transition-all duration-200 cursor-pointer
+                  ${isHole ? "bg-gold-700 border-gold-500 shadow-glow-sm" : ""}
+                  ${isCommunity ? "bg-emerald-900 border-emerald-600" : ""}
+                  ${!isSelected ? "bg-surface border-surface-raised hover:bg-surface-raised" : ""}
                   ${SUIT_COLORS[suit]}
                 `}
               >

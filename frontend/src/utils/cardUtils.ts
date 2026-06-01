@@ -9,10 +9,10 @@ export const SUIT_SYMBOLS: Record<string, string> = {
 };
 
 export const SUIT_COLORS: Record<string, string> = {
-  s: "text-gray-100",
-  h: "text-red-500",
-  d: "text-blue-400",
-  c: "text-green-400",
+  s: "text-stone-200",
+  h: "text-red-400",
+  d: "text-sky-400",
+  c: "text-emerald-400",
 };
 
 export function allCards(): string[] {

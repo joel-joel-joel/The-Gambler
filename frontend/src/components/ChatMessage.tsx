@@ -12,13 +12,13 @@ export function ChatMessage({ message }: ChatMessageProps) {
       <div
         className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
           isUser
-            ? "bg-blue-600 text-white"
-            : "bg-gray-700 text-gray-100"
+            ? "bg-gold-700 text-stone-100"
+            : "bg-surface text-stone-200"
         }`}
       >
         <p className="whitespace-pre-wrap">{message.content}</p>
         {message.boardUpdate && (
-          <div className="mt-1 pt-1 border-t border-gray-600 text-xs text-green-400">
+          <div className="mt-1 pt-1 border-t border-stone-600 text-xs text-emerald-400">
             Board updated
           </div>
         )}

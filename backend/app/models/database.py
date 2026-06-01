@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime
+from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Float
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 from datetime import datetime, timezone
 
@@ -17,6 +17,57 @@ class PIDRecord(Base):
     pid_markdown = Column(Text, nullable=False, default="")
     version = Column(Integer, nullable=False, default=1)
     last_updated = Column(
+        DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
+
+
+class SessionRecord(Base):
+    __tablename__ = "sessions"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(String, nullable=False, default="default")
+    is_active = Column(Integer, nullable=False, default=1)
+    started_at = Column(
+        DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
+    ended_at = Column(DateTime, nullable=True)
+    total_rounds = Column(Integer, nullable=False, default=0)
+    total_profit = Column(Float, nullable=False, default=0.0)
+    ai_summary = Column(Text, nullable=True)
+
+
+class RoundRecord(Base):
+    __tablename__ = "rounds"
+
+    id = Column(Integer, primary_key=True)
+    session_id = Column(Integer, nullable=False)
+    round_number = Column(Integer, nullable=False)
+    hole_cards = Column(Text, nullable=False)
+    community_cards = Column(Text, nullable=False, default="[]")
+    num_players = Column(Integer, nullable=False, default=6)
+    position = Column(String, nullable=True)
+    streets = Column(Text, nullable=False, default="[]")
+    result = Column(String, nullable=True)
+    profit = Column(Float, nullable=False, default=0.0)
+    pot_size = Column(Float, nullable=False, default=0.0)
+    notes = Column(Text, nullable=True)
+    created_at = Column(
+        DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
+
+
+class RoundCondensed(Base):
+    __tablename__ = "rounds_condensed"
+
+    id = Column(Integer, primary_key=True)
+    session_id = Column(Integer, nullable=False)
+    round_number = Column(Integer, nullable=False)
+    hole_cards = Column(Text, nullable=False)
+    result = Column(String, nullable=True)
+    profit = Column(Float, nullable=False, default=0.0)
+    key_decision = Column(Text, nullable=True)
+    lesson = Column(Text, nullable=True)
+    created_at = Column(
         DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
     )
 

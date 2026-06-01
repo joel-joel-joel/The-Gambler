@@ -28,13 +28,13 @@ export function UndoBanner() {
   if (!undoSnapshot) return null;
 
   return (
-    <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 flex items-center gap-3 shadow-xl z-50">
-      <span className="text-sm text-gray-300">Board updated by AI</span>
+    <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-surface border border-surface-raised rounded-lg px-4 py-2 flex items-center gap-3 shadow-glow z-50">
+      <span className="text-sm text-stone-300">Board updated by AI</span>
       <button
         onClick={undo}
-        className="px-3 py-1 bg-yellow-600 text-white text-sm rounded hover:bg-yellow-500"
+        className="px-3 py-1 bg-gold text-stone-900 text-sm font-semibold rounded hover:bg-gold-400 transition-colors duration-200 cursor-pointer"
       >
-        Undo ({timeLeft}s)
+        Undo (<span className="font-mono">{timeLeft}s</span>)
       </button>
     </div>
   );
