@@ -1,12 +1,22 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.models.database import init_db
 from app.routers.calculate import router as calculate_router
 from app.routers.chat import router as chat_router
 from app.routers.pid import router as pid_router
 
-app = FastAPI(title="The Gambler API", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
+
+app = FastAPI(title="The Gambler API", version="0.2.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
