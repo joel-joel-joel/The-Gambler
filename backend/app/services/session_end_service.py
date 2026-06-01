@@ -97,7 +97,7 @@ async def finalize_session(db: Session, session_id: int, user_id: str = "default
 
     current_pid = get_pid(db, user_id)
     updated_pid = await generate_pid_update(db, session_id, current_pid)
-    save_pid(db, user_id, updated_pid)
+    save_pid(db, user_id, updated_pid, trigger="session_end", session_id=session_id)
 
     session_rec = db.query(SessionRecord).filter(SessionRecord.id == session_id).first()
     if session_rec:

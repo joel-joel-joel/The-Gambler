@@ -21,6 +21,18 @@ class PIDRecord(Base):
     )
 
 
+class PIDHistory(Base):
+    __tablename__ = "pid_history"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(String, nullable=False, default="default")
+    version = Column(Integer, nullable=False)
+    pid_markdown = Column(Text, nullable=False)
+    trigger = Column(String, nullable=False, default="manual_edit")
+    session_id = Column(Integer, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+
+
 class SessionRecord(Base):
     __tablename__ = "sessions"
 
@@ -70,6 +82,21 @@ class RoundCondensed(Base):
     created_at = Column(
         DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
     )
+
+
+class PlayerProfile(Base):
+    __tablename__ = "player_profiles"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    user_id = Column(String, nullable=False, default="default")
+    tendency_tags = Column(Text, nullable=False, default="[]")
+    vpip_estimate = Column(Integer, nullable=True)
+    pfr_estimate = Column(Integer, nullable=True)
+    notes = Column(Text, nullable=False, default="")
+    key_hands = Column(Text, nullable=False, default="[]")
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
 
 
 engine = create_engine(
