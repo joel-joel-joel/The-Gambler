@@ -1,4 +1,4 @@
-export type TabId = "calculator" | "players" | "myGame";
+export type TabId = "calculator" | "players" | "myGame" | "training";
 
 export interface Card {
   rank: string;
@@ -138,4 +138,87 @@ export interface PIDVersion {
 
 export interface PIDVersionFull extends PIDVersion {
   pid_markdown: string;
+}
+
+export interface DrillScenario {
+  hole_cards?: string[];
+  community_cards?: string[];
+  street?: string;
+  outs?: number;
+  pot_size?: number;
+  bet_to_call?: number;
+  your_stack?: number;
+  bluff_size?: number;
+}
+
+export interface PendingDrill {
+  drill_id: string;
+  scenario: DrillScenario;
+  question_text: string;
+  answer_type: string;
+}
+
+export interface DrillCheckResult {
+  is_correct: boolean;
+  correct_answer: number;
+  explanation: string | null;
+  accuracy_now: number;
+  graduated: boolean;
+}
+
+export interface SkillProgressData {
+  skill: string;
+  total_attempts: number;
+  correct_count: number;
+  current_accuracy: number;
+  status: string;
+  streak_days: number;
+  last_attempt_date: string | null;
+  best_streak: number;
+  avg_response_time_ms: number;
+  graduated_at: string | null;
+}
+
+export interface DrillAttemptData {
+  id: number;
+  skill: string;
+  is_correct: boolean;
+  correct_answer: number;
+  user_answer: number;
+  response_time_ms: number;
+  source: string;
+  created_at: string | null;
+}
+
+export interface FocusSuggestion {
+  suggested_skill: string;
+  reason: string;
+}
+
+export interface ReviewQuestion {
+  question_text: string;
+  correct_answer: number;
+  answer_type: string;
+  tolerance: number;
+}
+
+export interface ReviewHand {
+  round_number: number;
+  hole_cards: string[];
+  community_cards: string[];
+  pot_size: number;
+  bet_to_call: number;
+  result: string | null;
+  ev_gap: number;
+  questions: ReviewQuestion[];
+}
+
+export interface SessionReview {
+  hands: ReviewHand[];
+}
+
+export interface ReviewCheckResult {
+  is_correct: boolean;
+  correct_answer: number;
+  explanation: string | null;
 }
