@@ -11,7 +11,7 @@ from app.services.session_service import (
     get_session,
     list_sessions,
 )
-from app.services.session_end_service import finalize_session, generate_session_summary
+from app.services.session_end_service import finalize_session, generate_session_summary, build_session_stats
 
 router = APIRouter()
 
@@ -73,11 +73,17 @@ def end_session_endpoint(session_id: int, db: Session = Depends(get_db)):
 
 @router.post("/api/sessions/{session_id}/finalize")
 async def finalize_session_endpoint(session_id: int, db: Session = Depends(get_db)):
-    """Run the full session-end flow: compute stats, generate AI summary, update PID."""
+    """Run the full session-end flow: compute stats, generate AI summary, update PID.
+
+    Always ends the session even if AI calls fail.
+    """
     session_rec = get_session(db, session_id)
     if not session_rec:
         raise HTTPException(status_code=404, detail="Session not found")
-    result = await finalize_session(db, session_id)
+    try:
+        result = await finalize_session(db, session_id)
+    except Exception:
+        result = {"stats": build_session_stats(db, session_id), "summary": "Session ended. AI summary unavailable.", "pid_updated": False, "leaks_generated": 0}
     end_session(db, session_id)
     return result
 

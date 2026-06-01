@@ -102,6 +102,7 @@ def generate_drill(
         "tolerance": skill_def["tolerance"],
         "source": source,
         "user_id": user_id,
+        "draws": scenario.get("draws", []),
     }
 
     return {
@@ -211,7 +212,7 @@ def check_answer(
     db.commit()
 
     # Build explanation
-    explanation = _build_explanation(skill, correct_answer, user_answer, is_correct)
+    explanation = _build_explanation(skill, correct_answer, user_answer, is_correct, draws=drill.get("draws"))
 
     return {
         "is_correct": is_correct,
@@ -378,28 +379,32 @@ def _unlock_next_skills(db: Session, user_id: str, graduated_skill: str) -> None
 
 
 def _build_explanation(
-    skill: str, correct: float, user_answer: float, is_correct: bool
+    skill: str, correct: float, user_answer: float, is_correct: bool,
+    draws: list[dict] | None = None,
 ) -> str:
-    """Build a short explanation for the drill result."""
-    if is_correct:
-        return f"Correct! The answer is {correct}."
+    """Build an explanation with the reasoning behind the correct answer."""
+    prefix = "Correct!" if is_correct else "Incorrect."
 
     if skill == "outs":
-        return f"The correct count is {int(correct)} outs. You answered {int(user_answer)}."
+        breakdown = ""
+        if draws:
+            parts = [d.get("description", f'{d["outs"]} {d["draw_type"]}') for d in draws]
+            breakdown = " Breakdown: " + ", ".join(parts) + "."
+        return f"{prefix} The answer is {int(correct)} outs.{breakdown}"
     elif skill == "rule_of_2_4":
-        return f"The correct equity estimate is {correct:.1f}%. You answered {user_answer:.1f}%."
+        return f"{prefix} The answer is {correct:.1f}%. You answered {user_answer:.1f}%."
     elif skill == "pot_odds":
-        return f"The correct pot odds are {correct:.1f}%. You answered {user_answer:.1f}%."
+        return f"{prefix} The answer is {correct:.1f}%. You answered {user_answer:.1f}%."
     elif skill == "the_decision":
         correct_action = "call" if correct == 1.0 else "fold"
         user_action = "call" if user_answer == 1.0 else "fold"
-        return f"The correct decision is {correct_action}. You chose {user_action}."
+        return f"{prefix} The correct decision is {correct_action}. You chose {user_action}."
     elif skill == "spr_commitment":
-        return f"The correct SPR is {correct:.1f}. You answered {user_answer:.1f}."
+        return f"{prefix} The answer is {correct:.1f}. You answered {user_answer:.1f}."
     elif skill == "bluff_math":
-        return f"The break-even frequency is {correct:.1f}%. You answered {user_answer:.1f}%."
+        return f"{prefix} The answer is {correct:.1f}%. You answered {user_answer:.1f}%."
     else:
-        return f"The correct answer is {correct}. You answered {user_answer}."
+        return f"{prefix} The answer is {correct}. You answered {user_answer}."
 
 
 # ---------------------------------------------------------------------------
@@ -408,12 +413,20 @@ def _build_explanation(
 
 
 def _generate_outs_drill() -> tuple[dict, float, str]:
-    """Generate an outs-counting drill with random cards."""
-    hole_cards = _random_cards(2)
-    num_community = random.choice([3, 4])  # flop or turn
-    community_cards = _random_cards(num_community, exclude=hole_cards)
+    """Generate an outs-counting drill with random cards.
 
-    result = detect_outs(hole_cards, community_cards)
+    Re-rolls up to 20 times if the scenario produces 0 outs,
+    to ensure the drill is interesting.
+    """
+    for _ in range(20):
+        hole_cards = _random_cards(2)
+        num_community = random.choice([3, 4])
+        community_cards = _random_cards(num_community, exclude=hole_cards)
+
+        result = detect_outs(hole_cards, community_cards)
+        if result["total_outs"] > 0:
+            break
+
     correct_answer = float(result["total_outs"])
 
     street = "flop" if num_community == 3 else "turn"
@@ -432,13 +445,19 @@ def _generate_outs_drill() -> tuple[dict, float, str]:
 
 
 def _generate_rule_of_2_4_drill() -> tuple[dict, float, str]:
-    """Generate a rule of 2&4 drill with random cards."""
-    hole_cards = _random_cards(2)
-    num_community = random.choice([3, 4])
-    community_cards = _random_cards(num_community, exclude=hole_cards)
+    """Generate a rule of 2&4 drill with random cards.
 
-    outs_result = detect_outs(hole_cards, community_cards)
-    total_outs = outs_result["total_outs"]
+    Re-rolls to ensure at least 1 out so the drill is meaningful.
+    """
+    for _ in range(20):
+        hole_cards = _random_cards(2)
+        num_community = random.choice([3, 4])
+        community_cards = _random_cards(num_community, exclude=hole_cards)
+
+        outs_result = detect_outs(hole_cards, community_cards)
+        total_outs = outs_result["total_outs"]
+        if total_outs > 0:
+            break
 
     street = "flop" if num_community == 3 else "turn"
     correct_answer = rule_of_2_4(total_outs, street)

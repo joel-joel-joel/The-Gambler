@@ -1,6 +1,4 @@
-import { CardSelector } from "./components/CardSelector";
-import { GameInputs } from "./components/GameInputs";
-import { QuickEntryBar } from "./components/QuickEntryBar";
+import { RoundFlow } from "./components/RoundFlow";
 import { ResultsPanel } from "./components/ResultsPanel";
 import { CheatSheet } from "./components/CheatSheet";
 import { RoundHistory } from "./components/RoundHistory";
@@ -47,9 +45,7 @@ function MainContent() {
     case "calculator":
       return (
         <div className="space-y-6">
-          <QuickEntryBar />
-          <CardSelector />
-          <GameInputs />
+          <RoundFlow />
           <ResultsPanel />
           <CheatSheet />
           <RoundHistory />

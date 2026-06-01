@@ -91,8 +91,10 @@ def test_flush_draw_outs():
     hole = ["Ah", "Kh"]
     board = ["7h", "2h", "9c"]
     result = detect_outs(hole, board)
-    assert result["total_outs"] == 9
+    # Flush (9) + two overcards A and K (6) = 15
+    assert result["total_outs"] == 15
     assert any(d["draw_type"] == "flush_draw" for d in result["draws"])
+    assert any(d["draw_type"] == "overcards" for d in result["draws"])
 
 
 def test_open_ended_straight_draw():

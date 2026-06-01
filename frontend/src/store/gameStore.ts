@@ -1,11 +1,16 @@
 import { create } from "zustand";
-import type { BoardUpdate, CalculationResult, GameState } from "../types";
+import type { BoardUpdate, CalculationResult, GameState, Street } from "../types";
+
+const STREET_ORDER: Street[] = ["preflop", "flop", "turn", "river"];
 
 interface GameStore extends GameState {
+  street: Street;
   results: CalculationResult | null;
   isLoading: boolean;
   error: string | null;
   undoSnapshot: GameState | null;
+  prevResults: CalculationResult | null;
+  roundKey: number;
 
   setHoleCards: (cards: string[]) => void;
   setCommunityCards: (cards: string[]) => void;
@@ -22,6 +27,9 @@ interface GameStore extends GameState {
   applyBoardUpdate: (update: BoardUpdate) => void;
   undo: () => void;
   clearUndo: () => void;
+  setStreet: (street: Street) => void;
+  nextStreet: () => void;
+  foldRound: () => void;
 }
 
 const initialState: GameState = {
@@ -37,10 +45,13 @@ const initialState: GameState = {
 
 export const useGameStore = create<GameStore>((set, get) => ({
   ...initialState,
+  street: "preflop" as Street,
   results: null,
   isLoading: false,
   error: null,
   undoSnapshot: null,
+  prevResults: null,
+  roundKey: 0,
 
   setHoleCards: (cards) => set({ holeCards: cards }),
   setCommunityCards: (cards) => set({ communityCards: cards }),
@@ -53,7 +64,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setResults: (results) => set({ results }),
   setIsLoading: (loading) => set({ isLoading: loading }),
   setError: (error) => set({ error }),
-  resetAll: () => set({ ...initialState, results: null, error: null, undoSnapshot: null }),
+
+  resetAll: () => set({
+    ...initialState,
+    street: "preflop" as Street,
+    results: null,
+    error: null,
+    undoSnapshot: null,
+    prevResults: null,
+  }),
 
   applyBoardUpdate: (update) => {
     const state = get();
@@ -87,4 +106,29 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   clearUndo: () => set({ undoSnapshot: null }),
+
+  setStreet: (street) => set({ street }),
+
+  nextStreet: () => {
+    const { street, results } = get();
+    const idx = STREET_ORDER.indexOf(street);
+    if (idx >= STREET_ORDER.length - 1) return;
+    set({
+      street: STREET_ORDER[idx + 1],
+      betToCall: 0,
+      prevResults: results,
+    });
+  },
+
+  foldRound: () => {
+    set((state) => ({
+      ...initialState,
+      street: "preflop" as Street,
+      results: null,
+      error: null,
+      undoSnapshot: null,
+      prevResults: null,
+      roundKey: state.roundKey + 1,
+    }));
+  },
 }));

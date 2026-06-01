@@ -204,141 +204,196 @@ def calculate_equity(
 def detect_outs(hole_cards: list[str], community_cards: list[str]) -> dict:
     """Detect drawing outs from hole cards and community cards.
 
-    Detects flush draws, open-ended straight draws, gutshot straight draws,
-    and overcards. Combines outs for combo draws (capped at 20).
+    Detects flush draws, straight draws (OESD, gutshot, double gutshot),
+    overcards, pair-to-trips, and pocket-pair-to-set. Overcards are always
+    counted even alongside flush/straight draws (standard poker education).
 
-    Args:
-        hole_cards: List of 2 card strings, e.g. ["Ah", "Kd"]
-        community_cards: List of 3-5 community card strings
+    Total outs = simple sum of each draw's outs, capped at 20.
+    Each draw includes a human-readable description for drill explanations.
 
     Returns:
         Dict with "draws" (list of draw dicts), "total_outs", and "outs_cards".
     """
-    # If river (5 community cards), no draws matter
     if len(community_cards) >= 5:
         return {"draws": [], "total_outs": 0, "outs_cards": []}
 
     all_cards = hole_cards + community_cards
     draws: list[dict] = []
     outs_cards_set: set[str] = set()
-
-    # Build set of all known cards for exclusion
     known_cards = set(all_cards)
 
-    # --- Rank and suit helpers ---
     rank_values = {
         "2": 0, "3": 1, "4": 2, "5": 3, "6": 4, "7": 5, "8": 6,
         "9": 7, "T": 8, "J": 9, "Q": 10, "K": 11, "A": 12,
     }
     value_to_rank = {v: k for k, v in rank_values.items()}
+    rank_names = {
+        "2": "twos", "3": "threes", "4": "fours", "5": "fives",
+        "6": "sixes", "7": "sevens", "8": "eights", "9": "nines",
+        "T": "tens", "J": "jacks", "Q": "queens", "K": "kings", "A": "aces",
+    }
+    suit_names = {"s": "spade", "h": "heart", "d": "diamond", "c": "club"}
     all_suits = ["s", "h", "d", "c"]
 
-    has_flush_draw = False
-    has_straight_draw = False
-
-    # --- Flush draw detection ---
-    suit_counts: dict[str, list[str]] = {}
-    for card in all_cards:
-        suit = card[1]
-        suit_counts.setdefault(suit, []).append(card)
-
-    for suit, cards_in_suit in suit_counts.items():
-        if len(cards_in_suit) == 4:
-            # 9 outs for flush draw
-            flush_outs = []
-            for rank_char in rank_values:
-                candidate = rank_char + suit
-                if candidate not in known_cards:
-                    flush_outs.append(candidate)
-            draws.append({"draw_type": "flush_draw", "outs": 9})
-            outs_cards_set.update(flush_outs)
-            has_flush_draw = True
-            break  # Only one flush draw possible
-
-    # --- Straight draw detection ---
-    # Get unique rank values present in all cards
-    rank_val_set = set(rank_values[card[0]] for card in all_cards)
-    # Add ace-low representation (-1) if ace is present
-    if 12 in rank_val_set:
-        rank_val_set.add(-1)
-
     def _rank_val_to_out_cards(val: int) -> list[str]:
-        """Convert a rank value to the list of unknown cards of that rank."""
-        actual_val = val if val >= 0 else 12  # -1 (ace-low) maps to Ace
+        actual_val = val if val >= 0 else 12
         rank_char = value_to_rank[actual_val]
         return [
             rank_char + s for s in all_suits
             if rank_char + s not in known_cards
         ]
 
-    # OESD: 4 consecutive ranks where BOTH ends can complete a 5-card straight.
-    # We look for runs of 4 consecutive in rank_val_set and check if adding
-    # a card on either end produces a valid straight window.
-    # Valid straight windows span 5 consecutive values within [-1..3] to [8..12].
-    found_oesd = False
-    oesd_outs_cards: list[str] = []
+    # --- Flush draw detection ---
+    suit_counts: dict[str, list[str]] = {}
+    for card in all_cards:
+        suit_counts.setdefault(card[1], []).append(card)
 
+    for suit, cards_in_suit in suit_counts.items():
+        if len(cards_in_suit) == 4:
+            flush_outs = [
+                r + suit for r in rank_values
+                if r + suit not in known_cards
+            ]
+            outs_count = len(flush_outs)
+            draws.append({
+                "draw_type": "flush_draw",
+                "outs": outs_count,
+                "description": f"{outs_count} {suit_names[suit]} outs for flush draw",
+            })
+            outs_cards_set.update(flush_outs)
+            break
+
+    # --- Straight draw detection ---
+    rank_val_set = set(rank_values[card[0]] for card in all_cards)
+    if 12 in rank_val_set:
+        rank_val_set.add(-1)
+
+    # Check for double gutshot first (two separate gutshots = 8 outs)
+    gutshot_missing: list[int] = []
+    for window_start in range(-1, 9):
+        window = list(range(window_start, window_start + 5))
+        present = [r for r in window if r in rank_val_set]
+        missing = [r for r in window if r not in rank_val_set]
+        if len(present) == 4 and len(missing) == 1:
+            if missing[0] not in gutshot_missing:
+                gutshot_missing.append(missing[0])
+
+    found_oesd = False
     for start in range(-1, 10):
         run = list(range(start, start + 4))
         if all(r in rank_val_set for r in run):
             low_end = start - 1
             high_end = start + 4
-            # Low-end straight: (start-1) through (start+3), valid if start-1 >= -1
             low_ok = low_end >= -1
-            # High-end straight: start through (start+4), valid if start+4 <= 12
             high_ok = high_end <= 12
             if low_ok and high_ok:
                 found_oesd = True
+                oesd_outs_cards: list[str] = []
                 for end_val in [low_end, high_end]:
                     oesd_outs_cards.extend(_rank_val_to_out_cards(end_val))
-                break  # Found the best OESD
-
-    # Gutshot: in any 5-card straight window, we have exactly 4 of 5 ranks.
-    # Only look for gutshot if no OESD was found (de-duplicate straight draw types).
-    found_gutshot = False
-    gutshot_outs_cards: list[str] = []
-
-    if not found_oesd:
-        for window_start in range(-1, 9):
-            window = list(range(window_start, window_start + 5))
-            present = [r for r in window if r in rank_val_set]
-            missing = [r for r in window if r not in rank_val_set]
-            if len(present) == 4 and len(missing) == 1:
-                found_gutshot = True
-                gutshot_outs_cards = _rank_val_to_out_cards(missing[0])
+                low_rank = value_to_rank[low_end if low_end >= 0 else 12]
+                high_rank = value_to_rank[high_end]
+                draws.append({
+                    "draw_type": "open_ended_straight",
+                    "outs": 8,
+                    "description": f"8 outs for open-ended straight (need {low_rank} or {high_rank})",
+                })
+                outs_cards_set.update(oesd_outs_cards)
                 break
 
-    if found_oesd:
-        draws.append({"draw_type": "open_ended_straight", "outs": 8})
-        outs_cards_set.update(oesd_outs_cards)
-        has_straight_draw = True
-    elif found_gutshot:
-        draws.append({"draw_type": "gutshot_straight", "outs": 4})
-        outs_cards_set.update(gutshot_outs_cards)
-        has_straight_draw = True
+    if not found_oesd:
+        if len(gutshot_missing) >= 2:
+            # Double gutshot — two different ranks each complete a straight
+            dg_outs_cards: list[str] = []
+            rank_strs = []
+            for val in gutshot_missing[:2]:
+                cards = _rank_val_to_out_cards(val)
+                dg_outs_cards.extend(cards)
+                actual_val = val if val >= 0 else 12
+                rank_strs.append(value_to_rank[actual_val])
+            outs_count = len(dg_outs_cards)
+            draws.append({
+                "draw_type": "double_gutshot",
+                "outs": outs_count,
+                "description": f"{outs_count} outs for double gutshot straight (need {rank_strs[0]} or {rank_strs[1]})",
+            })
+            outs_cards_set.update(dg_outs_cards)
+        elif len(gutshot_missing) == 1:
+            gs_cards = _rank_val_to_out_cards(gutshot_missing[0])
+            outs_count = len(gs_cards)
+            actual_val = gutshot_missing[0] if gutshot_missing[0] >= 0 else 12
+            needed_rank = value_to_rank[actual_val]
+            draws.append({
+                "draw_type": "gutshot_straight",
+                "outs": outs_count,
+                "description": f"{outs_count} {rank_names[needed_rank]} for gutshot straight",
+            })
+            outs_cards_set.update(gs_cards)
 
-    # --- Overcard detection ---
-    # Only count overcards when there is no flush draw or straight draw,
-    # since pairing overcards is a much weaker draw and would inflate outs.
-    if community_cards and not has_flush_draw and not has_straight_draw:
+    # --- Overcard detection (always counted, even with flush/straight draws) ---
+    if community_cards:
         board_max_rank = max(rank_values[card[0]] for card in community_cards)
         hole_overcards = [
-            card for card in hole_cards if rank_values[card[0]] > board_max_rank
+            card for card in hole_cards
+            if rank_values[card[0]] > board_max_rank
         ]
-
-        if len(hole_overcards) >= 1:
-            outs_count = 3 * len(hole_overcards)
+        # Only count overcards that don't already pair the board
+        board_ranks_set = set(card[0] for card in community_cards)
+        hole_overcards = [
+            card for card in hole_overcards
+            if card[0] not in board_ranks_set
+        ]
+        if hole_overcards:
             overcard_outs: list[str] = []
             for hc in hole_overcards:
-                rank_char = hc[0]
                 for s in all_suits:
-                    candidate = rank_char + s
+                    candidate = hc[0] + s
                     if candidate not in known_cards:
                         overcard_outs.append(candidate)
-            draws.append({"draw_type": "overcards", "outs": outs_count})
-            outs_cards_set.update(overcard_outs)
+            outs_count = len(overcard_outs)
+            if outs_count > 0:
+                names = [rank_names[hc[0]] for hc in hole_overcards]
+                draws.append({
+                    "draw_type": "overcards",
+                    "outs": outs_count,
+                    "description": f"{outs_count} {'/'.join(names)} for top pair",
+                })
+                outs_cards_set.update(overcard_outs)
 
-    # --- Calculate total outs (sum of draw outs, capped at 20) ---
+    # --- Pair improvement: pocket pair → set ---
+    hole_ranks = [card[0] for card in hole_cards]
+    board_ranks = [card[0] for card in community_cards]
+
+    if hole_ranks[0] == hole_ranks[1] and hole_ranks[0] not in board_ranks:
+        pair_rank = hole_ranks[0]
+        pair_outs = [
+            pair_rank + s for s in all_suits
+            if pair_rank + s not in known_cards
+        ]
+        if pair_outs:
+            draws.append({
+                "draw_type": "set_draw",
+                "outs": len(pair_outs),
+                "description": f"{len(pair_outs)} {rank_names[pair_rank]} for a set",
+            })
+            outs_cards_set.update(pair_outs)
+
+    # --- Pair improvement: hole card pairs board → trips ---
+    elif hole_ranks[0] != hole_ranks[1]:
+        for hc in hole_cards:
+            if hc[0] in board_ranks:
+                trip_outs = [
+                    hc[0] + s for s in all_suits
+                    if hc[0] + s not in known_cards
+                ]
+                if trip_outs:
+                    draws.append({
+                        "draw_type": "trips_draw",
+                        "outs": len(trip_outs),
+                        "description": f"{len(trip_outs)} {rank_names[hc[0]]} for trips",
+                    })
+                    outs_cards_set.update(trip_outs)
+
     total_outs = min(sum(d["outs"] for d in draws), 20)
 
     return {

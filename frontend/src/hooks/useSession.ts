@@ -30,10 +30,20 @@ export function useSession() {
       const resp = await fetch(`/api/sessions/${activeSession.id}/finalize`, {
         method: "POST",
       });
+      if (!resp.ok) {
+        await fetch(`/api/sessions/${activeSession.id}/end`, { method: "POST" });
+        setActiveSession(null);
+        setRounds([]);
+        return { summary: "Session ended. AI summary unavailable." };
+      }
       const result = await resp.json();
       setActiveSession(null);
       setRounds([]);
       return result;
+    } catch {
+      setActiveSession(null);
+      setRounds([]);
+      return { summary: "Session ended." };
     } finally {
       setIsLoading(false);
     }

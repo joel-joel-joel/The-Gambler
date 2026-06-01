@@ -1,4 +1,5 @@
 export type TabId = "calculator" | "players" | "myGame" | "training";
+export type Street = "preflop" | "flop" | "turn" | "river";
 
 export interface Card {
   rank: string;

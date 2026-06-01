@@ -17,10 +17,23 @@ const METRIC_SKILL_MAP: Record<string, string> = {
   outs: "outs",
 };
 
+function EquityDelta({ current, previous }: { current: number; previous: number | null }) {
+  if (previous === null) return null;
+  const delta = current - previous;
+  if (Math.abs(delta) < 0.5) return null;
+  const sign = delta > 0 ? "+" : "";
+  const color = delta > 0 ? "text-emerald-400" : "text-red-400";
+  return (
+    <span className={`text-xs font-mono ${color} ml-1`}>
+      ({sign}{delta.toFixed(1)}%)
+    </span>
+  );
+}
+
 export function ResultsPanel() {
   usePokerCalculator();
 
-  const { results, isLoading, error, holeCards } = useGameStore();
+  const { results, isLoading, error, holeCards, street, prevResults } = useGameStore();
   const { skillProgress, setSkillProgress } = useTrainingStore();
 
   useEffect(() => {
@@ -68,11 +81,16 @@ export function ResultsPanel() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <MetricCard
-          label="Equity"
-          value={`${results.equity}%`}
-          metricKey="equity"
-        />
+        <div className="bg-surface rounded-lg p-3">
+          <div className="flex items-center text-xs text-stone-400 mb-1">
+            Equity ({street})
+            <MetricTooltip metricKey="equity" />
+          </div>
+          <div className="text-lg font-bold font-mono text-stone-100">
+            {results.equity}%
+            <EquityDelta current={results.equity} previous={prevResults?.equity ?? null} />
+          </div>
+        </div>
         <MetricCard
           label="EV"
           value={`${results.ev >= 0 ? "+" : ""}$${results.ev.toFixed(2)}`}
