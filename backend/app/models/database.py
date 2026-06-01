@@ -99,6 +99,22 @@ class PlayerProfile(Base):
     updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
 
 
+class LeakRecord(Base):
+    __tablename__ = "leaks"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(String, nullable=False, default="default")
+    description = Column(Text, nullable=False)
+    category = Column(String, nullable=False, default="general")
+    ev_impact = Column(String, nullable=False, default="medium")
+    status = Column(String, nullable=False, default="active")
+    source = Column(String, nullable=False, default="manual")
+    session_id = Column(Integer, nullable=True)
+    evidence = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+
+
 engine = create_engine(
     settings.database_url, connect_args={"check_same_thread": False}
 )
