@@ -54,3 +54,20 @@ export interface QuickEntryResult {
   confidence: number;
   assumptions: string[];
 }
+
+export interface BoardUpdate {
+  pot_size?: number;
+  bet_to_call?: number;
+  community_cards?: string[];
+  hole_cards?: string[];
+  num_players?: number;
+  position?: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  boardUpdate: BoardUpdate | null;
+  timestamp: number;
+}
