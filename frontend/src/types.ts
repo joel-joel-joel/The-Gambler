@@ -113,3 +113,29 @@ export interface OpponentData {
   created_at: string | null;
   updated_at: string | null;
 }
+
+export interface LeakData {
+  id: number;
+  user_id: string;
+  description: string;
+  category: string;
+  ev_impact: string;
+  status: string;
+  source: string;
+  session_id: number | null;
+  evidence: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface PIDVersion {
+  id: number;
+  version: number;
+  trigger: string;
+  session_id: number | null;
+  created_at: string | null;
+}
+
+export interface PIDVersionFull extends PIDVersion {
+  pid_markdown: string;
+}
