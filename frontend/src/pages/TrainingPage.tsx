@@ -434,13 +434,36 @@ export function TrainingPage() {
     }
   };
 
-  const handleNextDrill = () => {
-    setCurrentDrill(null);
+  const handleNextDrill = useCallback(async () => {
     setLastResult(null);
     setUserAnswer("");
     setDecisionAnswer(null);
     setError(null);
-  };
+    setIsGenerating(true);
+    try {
+      const drill = await generateDrill(selectedSkill, drillSource);
+      setCurrentDrill(drill);
+      drillStartTime.current = Date.now();
+    } catch (e) {
+      setCurrentDrill(null);
+      setError(e instanceof Error ? e.message : "Failed to generate drill");
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [selectedSkill, drillSource, generateDrill, setCurrentDrill, setLastResult, setIsGenerating]);
+
+  // Enter key to advance to next drill after feedback
+  useEffect(() => {
+    if (!lastResult) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleNextDrill();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lastResult, handleNextDrill]);
 
   const graduated = graduatedSkills();
 
@@ -641,9 +664,10 @@ export function TrainingPage() {
           <FeedbackDisplay />
           <button
             onClick={handleNextDrill}
-            className="px-4 py-2 bg-gold text-stone-900 font-semibold rounded hover:bg-gold-400 cursor-pointer transition-colors duration-200"
+            disabled={isGenerating}
+            className="px-4 py-2 bg-gold text-stone-900 font-semibold rounded hover:bg-gold-400 cursor-pointer transition-colors duration-200 disabled:opacity-50"
           >
-            Next Drill
+            {isGenerating ? "Generating..." : "Next Drill (Enter)"}
           </button>
         </>
       )}

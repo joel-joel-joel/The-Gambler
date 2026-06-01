@@ -170,6 +170,16 @@ def test_pocket_pair_set_draw():
     assert _draw_outs(result, "set_draw") == 2
 
 
+def test_pocket_pair_overcard_no_double_count():
+    # Kd Kh on 6s 9c 5h — K is an overcard AND a pocket pair
+    # Should only count set draw (2), NOT overcards
+    result = detect_outs(["Kd", "Kh"], ["6s", "9c", "5h"])
+    assert _has_draw(result, "set_draw")
+    assert _draw_outs(result, "set_draw") == 2
+    assert not _has_draw(result, "overcards")
+    assert result["total_outs"] == 2
+
+
 # --- Monster combo draws ---
 
 def test_flush_plus_oesd():

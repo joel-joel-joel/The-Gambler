@@ -30,6 +30,7 @@ class CalculateRequest(BaseModel):
     hole_cards: list[str]
     community_cards: list[str] = []
     num_players: int = 2
+    table_size: int = 0
     pot_size: float = 0
     bet_to_call: float = 0
     position: Optional[str] = None
@@ -110,14 +111,23 @@ def calculate(req: CalculateRequest):
 
     # Recommendation
     rec_spr = spr if spr is not None else float("inf")
-    action, reason = recommend(
+    action, reason, raise_info = recommend(
         equity=equity_decimal,
         equity_required=equity_required_decimal,
         ev_call=ev,
         spr=rec_spr,
         street=street,
         outs=total_outs,
+        pot_size=req.pot_size,
+        bet_to_call=req.bet_to_call,
+        position=req.position,
+        table_size=req.table_size,
+        active_players=req.num_players,
     )
+
+    rec = {"action": action, "reason": reason}
+    if raise_info:
+        rec["raise_sizing"] = raise_info
 
     return {
         "equity": equity_pct,
@@ -133,7 +143,7 @@ def calculate(req: CalculateRequest):
         "bet_pot_percentage": bet_pot_percentage,
         "effective_stack": effective_stack_info,
         "preflop_hand_tier": preflop_hand_tier,
-        "recommendation": {"action": action, "reason": reason},
+        "recommendation": rec,
         "street": street,
     }
 

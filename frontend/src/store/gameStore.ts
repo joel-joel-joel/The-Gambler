@@ -10,9 +10,13 @@ interface GameStore extends GameState {
   error: string | null;
   undoSnapshot: GameState | null;
   prevResults: CalculationResult | null;
+  streetResults: Partial<Record<Street, CalculationResult>>;
+  viewingStreet: Street | null;
   roundKey: number;
+  tableSize: number;
 
   setHoleCards: (cards: string[]) => void;
+  setTableSize: (n: number) => void;
   setCommunityCards: (cards: string[]) => void;
   setNumPlayers: (n: number) => void;
   setPotSize: (size: number) => void;
@@ -28,6 +32,7 @@ interface GameStore extends GameState {
   undo: () => void;
   clearUndo: () => void;
   setStreet: (street: Street) => void;
+  setViewingStreet: (street: Street | null) => void;
   nextStreet: () => void;
   foldRound: () => void;
 }
@@ -35,7 +40,7 @@ interface GameStore extends GameState {
 const initialState: GameState = {
   holeCards: [],
   communityCards: [],
-  numPlayers: 6,
+  numPlayers: 2,
   potSize: 0,
   betToCall: 0,
   position: null,
@@ -51,11 +56,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
   error: null,
   undoSnapshot: null,
   prevResults: null,
+  streetResults: {},
+  viewingStreet: null,
   roundKey: 0,
+  tableSize: 0,
 
   setHoleCards: (cards) => set({ holeCards: cards }),
   setCommunityCards: (cards) => set({ communityCards: cards }),
   setNumPlayers: (n) => set({ numPlayers: n }),
+  setTableSize: (n) => set({ tableSize: n, numPlayers: n }),
   setPotSize: (size) => set({ potSize: size }),
   setBetToCall: (bet) => set({ betToCall: bet }),
   setPosition: (pos) => set({ position: pos }),
@@ -107,28 +116,38 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   clearUndo: () => set({ undoSnapshot: null }),
 
-  setStreet: (street) => set({ street }),
+  setStreet: (street) => set({ street, viewingStreet: null }),
+
+  setViewingStreet: (street) => set({ viewingStreet: street }),
 
   nextStreet: () => {
-    const { street, results } = get();
+    const { street, results, streetResults } = get();
     const idx = STREET_ORDER.indexOf(street);
     if (idx >= STREET_ORDER.length - 1) return;
+    const updated = { ...streetResults };
+    if (results) updated[street] = results;
     set({
       street: STREET_ORDER[idx + 1],
       betToCall: 0,
       prevResults: results,
+      streetResults: updated,
+      viewingStreet: null,
     });
   },
 
   foldRound: () => {
     set((state) => ({
       ...initialState,
+      numPlayers: state.tableSize || initialState.numPlayers,
       street: "preflop" as Street,
       results: null,
       error: null,
       undoSnapshot: null,
       prevResults: null,
+      streetResults: {},
+      viewingStreet: null,
       roundKey: state.roundKey + 1,
+      tableSize: state.tableSize,
     }));
   },
 }));

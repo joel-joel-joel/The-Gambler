@@ -6,16 +6,28 @@ from typing import Optional
 import eval7
 
 
-# Preflop hand tiers (1 = premium, 8 = speculative)
+# Preflop hand tiers (1 = premium, 10 = trash)
+# Covers the full standard opening range (~170 hands)
 HAND_TIERS = {
     1: ["AA", "KK"],
     2: ["QQ", "JJ", "AKs"],
     3: ["TT", "AQs", "AKo", "AJs"],
     4: ["99", "AQo", "ATs", "KQs"],
     5: ["88", "77", "KJs", "KTs", "QJs", "AJo", "ATo"],
-    6: ["66", "55", "KQo", "KJo", "QTs", "JTs"],
-    7: ["44", "33", "22", "T9s", "98s", "87s", "76s", "65s", "KTo", "QJo"],
-    8: ["J9s", "T8s", "97s", "86s", "75s", "54s", "Q9s"],
+    6: ["66", "55", "KQo", "KJo", "QTs", "JTs", "A9s", "A8s"],
+    7: ["44", "33", "22", "T9s", "98s", "87s", "76s", "65s", "KTo", "QJo",
+        "A7s", "A6s", "A5s", "A4s", "A3s", "A2s", "K9s", "Q9s", "J9s"],
+    8: ["T8s", "97s", "86s", "75s", "54s", "A9o", "A8o", "K9o",
+        "QTo", "JTo", "K8s", "Q8s", "J8s", "T7s", "96s", "85s", "64s", "53s"],
+    9: ["A7o", "A6o", "A5o", "A4o", "A3o", "A2o", "K7s", "K6s", "K5s",
+        "K8o", "Q9o", "J9o", "T9o", "98o", "87o", "76o", "65o",
+        "K4s", "K3s", "K2s", "Q7s", "Q6s", "J7s", "T6s", "95s", "84s",
+        "74s", "63s", "52s", "43s"],
+    10: ["K7o", "K6o", "K5o", "K4o", "K3o", "K2o", "Q8o", "Q7o", "Q6o",
+         "J8o", "J7o", "T8o", "T7o", "97o", "96o", "86o", "85o", "75o",
+         "64o", "54o", "53o", "43o", "42s", "32s", "Q5s", "Q4s", "Q3s",
+         "Q2s", "J6s", "J5s", "J4s", "J3s", "J2s", "T5s", "T4s", "T3s",
+         "T2s", "94s", "93s", "92s", "83s", "82s", "73s", "72s", "62s"],
 }
 
 # Rank ordering for normalization (high to low)
@@ -337,12 +349,16 @@ def detect_outs(hole_cards: list[str], community_cards: list[str]) -> dict:
             card for card in hole_cards
             if rank_values[card[0]] > board_max_rank
         ]
-        # Only count overcards that don't already pair the board
+        # Exclude ranks that pair the board (trips_draw handles those)
         board_ranks_set = set(card[0] for card in community_cards)
         hole_overcards = [
             card for card in hole_overcards
             if card[0] not in board_ranks_set
         ]
+        # Exclude pocket pairs (set_draw handles those)
+        hole_rank_set = [card[0] for card in hole_cards]
+        if hole_rank_set[0] == hole_rank_set[1]:
+            hole_overcards = []
         if hole_overcards:
             overcard_outs: list[str] = []
             for hc in hole_overcards:

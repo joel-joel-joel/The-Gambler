@@ -44,7 +44,11 @@ export interface CalculationResult {
   bet_pot_percentage: number | null;
   effective_stack: EffectiveStack | null;
   preflop_hand_tier: number | null;
-  recommendation: { action: string; reason: string };
+  recommendation: {
+    action: string;
+    reason: string;
+    raise_sizing?: { sizing: string; amount: number | null; reasoning: string };
+  };
   street: string;
 }
 

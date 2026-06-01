@@ -6,7 +6,21 @@ import type { Street } from "../types";
 
 const VALID_RANKS = new Set("23456789TJQKA".split(""));
 const VALID_SUITS = new Set("SHDC".split(""));
-const POSITIONS = ["UTG", "MP", "CO", "BTN", "SB", "BB"] as const;
+
+const POSITIONS_BY_SIZE: Record<number, string[]> = {
+  2: ["SB", "BB"],
+  3: ["BTN", "SB", "BB"],
+  4: ["CO", "BTN", "SB", "BB"],
+  5: ["MP", "CO", "BTN", "SB", "BB"],
+  6: ["UTG", "MP", "CO", "BTN", "SB", "BB"],
+  7: ["UTG", "UTG+1", "MP", "CO", "BTN", "SB", "BB"],
+  8: ["UTG", "UTG+1", "MP", "MP+1", "CO", "BTN", "SB", "BB"],
+  9: ["UTG", "UTG+1", "UTG+2", "MP", "MP+1", "CO", "BTN", "SB", "BB"],
+};
+
+function getPositionsForSize(n: number): string[] {
+  return POSITIONS_BY_SIZE[Math.min(Math.max(n, 2), 9)] ?? POSITIONS_BY_SIZE[6];
+}
 
 type FieldType = "card" | "number" | "position" | "players";
 
@@ -45,12 +59,24 @@ function buildFieldsForStreet(
   position: string | null,
 ): FieldDef[] {
   const fields: FieldDef[] = [];
+  const isPreflop = targetStreet === "preflop";
+
+  // Preflop: Players (table size) → Position → Cards → Pot → Bet
+  // Postflop: Cards → Pot → Bet → Players (active)
+
+  if (isPreflop) {
+    fields.push({ key: "players", label: "Table Size", placeholder: "2-9", type: "players" });
+    if (!position) {
+      fields.push({ key: "position", label: "Position", placeholder: "", type: "position" });
+    }
+    fields.push({ key: "active", label: "Active Players", placeholder: "2-9 (still in hand)", type: "players" });
+  }
 
   if (holeCards.length < 1) {
-    fields.push({ key: "card1", label: "Card 1", placeholder: "AS, Kh, 2d", type: "card", required: true });
+    fields.push({ key: "card1", label: "Card 1", placeholder: "AS, Kh, 10d", type: "card", required: true });
   }
   if (holeCards.length < 2) {
-    fields.push({ key: "card2", label: "Card 2", placeholder: "KC, Th, 9s", type: "card", required: true });
+    fields.push({ key: "card2", label: "Card 2", placeholder: "KC, 10h, 9s", type: "card", required: true });
   }
 
   const neededCommunity = COMMUNITY_CARD_COUNTS[targetStreet];
@@ -66,36 +92,39 @@ function buildFieldsForStreet(
 
   fields.push({ key: "pot", label: "Pot", placeholder: "$", type: "number" });
   fields.push({ key: "bet", label: "Bet", placeholder: "$", type: "number" });
-  fields.push({ key: "players", label: "Players", placeholder: "2-9", type: "players" });
 
-  if (!position) {
-    fields.push({ key: "position", label: "Position", placeholder: "", type: "position" });
+  if (!isPreflop) {
+    fields.push({ key: "players", label: "Active Players", placeholder: "2-9", type: "players" });
   }
 
   return fields;
 }
 
-function PositionKeyListener({ onSelect, onSkip }: { onSelect: (pos: string) => void; onSkip: () => void }) {
+function PositionKeyListener({ positions, onSelect, onSkip, onBack }: { positions: string[]; onSelect: (pos: string) => void; onSkip: () => void; onBack: () => void }) {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       const n = Number(e.key);
-      if (n >= 1 && n <= 6) {
+      if (n >= 1 && n <= positions.length) {
         e.preventDefault();
-        onSelect(POSITIONS[n - 1]);
+        onSelect(positions[n - 1]);
       } else if (e.key === "0" || e.key === "Enter") {
         e.preventDefault();
         onSkip();
+      } else if (e.key === "Backspace") {
+        e.preventDefault();
+        onBack();
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onSelect, onSkip]);
+  }, [positions, onSelect, onSkip, onBack]);
   return null;
 }
 
 function parseCard(input: string): string | null {
-  const s = input.trim().toUpperCase();
+  let s = input.trim().toUpperCase();
+  if (s.startsWith("10")) s = "T" + s.slice(2);
   if (s.length !== 2) return null;
   if (!VALID_RANKS.has(s[0]) || !VALID_SUITS.has(s[1])) return null;
   return s[0] + s[1].toLowerCase();
@@ -125,7 +154,8 @@ export function RoundFlow() {
   const {
     street, holeCards, communityCards, potSize, betToCall, numPlayers, position,
     setHoleCards, setCommunityCards, setPotSize, setBetToCall, setNumPlayers, setPosition,
-    setStreet, nextStreet, foldRound, roundKey,
+    setStreet, setViewingStreet, nextStreet, foldRound, roundKey, streetResults,
+    tableSize, setTableSize,
   } = useGameStore();
   const { activeSession, saveRound } = useSession();
 
@@ -137,6 +167,7 @@ export function RoundFlow() {
   const [error, setError] = useState<string | null>(null);
   const [completed, setCompleted] = useState(false);
   const [applied, setApplied] = useState<AppliedEntry[]>([]);
+  const justCompletedRef = useRef(false);
   const [savedToast, setSavedToast] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -164,10 +195,18 @@ export function RoundFlow() {
     switch (field.key) {
       case "pot": return potSize > 0 ? String(potSize) : "";
       case "bet": return betToCall > 0 ? String(betToCall) : "";
-      case "players": return String(numPlayers);
+      case "players": {
+        if (field.key === "players" && street === "preflop") {
+          return tableSize > 0 ? String(tableSize) : "";
+        }
+        if (field.key === "active") {
+          return tableSize > 0 ? String(tableSize) : (numPlayers > 0 ? String(numPlayers) : "");
+        }
+        return numPlayers > 0 ? String(numPlayers) : "";
+      }
       default: return "";
     }
-  }, [potSize, betToCall, numPlayers]);
+  }, [potSize, betToCall, numPlayers, tableSize, street]);
 
   function validate(field: FieldDef, value: string): string | null {
     const v = value.trim();
@@ -177,7 +216,7 @@ export function RoundFlow() {
     }
     switch (field.type) {
       case "card": {
-        if (!parseCard(v)) return "Rank + suit (e.g. AS, Kh, 2d)";
+        if (!parseCard(v)) return "Rank + suit (e.g. AS, Kh, 10d)";
         const card = parseCard(v)!;
         const allCards = [...holeCards, ...communityCards];
         if (allCards.includes(card)) return "Card already dealt";
@@ -231,9 +270,15 @@ export function RoundFlow() {
       case "position":
         setPosition(v.toUpperCase());
         break;
-      case "players":
-        setNumPlayers(Number(v));
+      case "players": {
+        const n = Number(v);
+        if (field.key === "players" && street === "preflop") {
+          setTableSize(n);
+        } else {
+          setNumPlayers(n);
+        }
         break;
+      }
     }
   }
 
@@ -266,7 +311,9 @@ export function RoundFlow() {
     if (fieldIdx < fields.length - 1) {
       setFieldIdx(fieldIdx + 1);
     } else {
+      justCompletedRef.current = true;
       setCompleted(true);
+      setTimeout(() => { justCompletedRef.current = false; }, 100);
     }
   }
 
@@ -280,7 +327,11 @@ export function RoundFlow() {
     setNumPlayers(last.prevNumPlayers);
     setPosition(last.prevPosition);
     setApplied(applied.slice(0, -1));
-    setFieldIdx(fieldIdx > 0 ? fieldIdx - 1 : 0);
+    if (completed) {
+      setFieldIdx(fieldIdx);
+    } else {
+      setFieldIdx(fieldIdx > 0 ? fieldIdx - 1 : 0);
+    }
     setCompleted(false);
     setInput("");
     setError(null);
@@ -315,20 +366,27 @@ export function RoundFlow() {
     }, 1500);
   }
 
-  // Global keyboard shortcuts when street is completed
+  // Global keyboard shortcuts — R always resets (even in inputs), Enter when completed
   useEffect(() => {
-    if (!completed || savedToast) return;
+    if (savedToast) return;
     function onKey(e: KeyboardEvent) {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (street === "river" && (e.key === "Enter" || e.key === "s" || e.key === "S")) {
-        e.preventDefault();
-        handleSaveRound();
-      } else if (e.key === "n" || e.key === "N") {
-        e.preventDefault();
-        nextStreet();
-      } else if (e.key === "r" || e.key === "R") {
+      if (e.key === "r" || e.key === "R") {
         e.preventDefault();
         foldRound();
+        return;
+      }
+      const inInput = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
+      if (completed && e.key === "Enter" && !justCompletedRef.current) {
+        e.preventDefault();
+        if (inInput) (e.target as HTMLElement).blur();
+        if (street === "river") handleSaveRound();
+        else nextStreet();
+        return;
+      }
+      if (inInput) return;
+      if (completed && e.key === "Backspace") {
+        e.preventDefault();
+        goBack();
       }
     }
     window.addEventListener("keydown", onKey);
@@ -349,23 +407,40 @@ export function RoundFlow() {
 
       {/* Street progress bar — clickable */}
       <div className="flex items-center gap-2">
-        {STREET_ORDER.map((s, i) => (
-          <div key={s} className="flex items-center gap-2 flex-1">
-            <button
-              onClick={() => jumpToStreet(s)}
-              className={`flex-1 text-center text-xs font-semibold py-1.5 rounded cursor-pointer transition-colors duration-200 ${
-                i < streetIdx ? "bg-gold/20 text-gold hover:bg-gold/30" :
-                i === streetIdx ? "bg-gold text-stone-900" :
-                "bg-surface-raised text-stone-500 hover:bg-surface-hover hover:text-stone-300"
-              }`}
-            >
-              {STREET_LABELS[s]}
-            </button>
-            {i < STREET_ORDER.length - 1 && (
-              <span className={`text-xs ${i < streetIdx ? "text-gold" : "text-surface-raised"}`}>→</span>
-            )}
-          </div>
-        ))}
+        {STREET_ORDER.map((s, i) => {
+          const hasResults = !!streetResults[s];
+          const isCurrent = i === streetIdx;
+          const isPast = i < streetIdx;
+
+          function handleClick() {
+            if (isPast && hasResults) {
+              setViewingStreet(s);
+            } else if (isCurrent) {
+              setViewingStreet(null);
+            } else {
+              jumpToStreet(s);
+            }
+          }
+
+          return (
+            <div key={s} className="flex items-center gap-2 flex-1">
+              <button
+                onClick={handleClick}
+                className={`flex-1 text-center text-xs font-semibold py-1.5 rounded cursor-pointer transition-colors duration-200 ${
+                  isCurrent ? "bg-gold text-stone-900" :
+                  isPast && hasResults ? "bg-gold/20 text-gold hover:bg-gold/40" :
+                  isPast ? "bg-gold/10 text-gold/60" :
+                  "bg-surface-raised text-stone-500 hover:bg-surface-hover hover:text-stone-300"
+                }`}
+              >
+                {STREET_LABELS[s]}
+              </button>
+              {i < STREET_ORDER.length - 1 && (
+                <span className={`text-xs ${isPast ? "text-gold" : "text-surface-raised"}`}>→</span>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* Dealt cards summary */}
@@ -418,8 +493,8 @@ export function RoundFlow() {
           </span>
 
           {currentField.type === "position" ? (
-            <div className="flex gap-1 flex-1 items-center">
-              {POSITIONS.map((pos, i) => (
+            <div className="flex gap-1 flex-1 items-center flex-wrap">
+              {getPositionsForSize(numPlayers).map((pos, i) => (
                 <button
                   key={pos}
                   onClick={() => {
@@ -439,7 +514,7 @@ export function RoundFlow() {
                   <span className="text-gold font-mono">{i + 1}</span> {pos}
                 </button>
               ))}
-              <PositionKeyListener onSelect={(pos) => {
+              <PositionKeyListener positions={getPositionsForSize(numPlayers)} onSelect={(pos) => {
                 const snap = snapshot();
                 applyField(currentField, pos);
                 setApplied([...applied, { field: currentField, value: pos, ...snap }]);
@@ -456,7 +531,7 @@ export function RoundFlow() {
                 setInput("");
                 if (fieldIdx < fields.length - 1) setFieldIdx(fieldIdx + 1);
                 else setCompleted(true);
-              }} />
+              }} onBack={goBack} />
               <button
                 onClick={() => {
                   setApplied([...applied, { field: currentField, value: "", ...snapshot() }]);
@@ -500,38 +575,75 @@ export function RoundFlow() {
                   Skip
                 </button>
               )}
+              <button
+                onClick={() => foldRound()}
+                className="px-2 py-2 text-xs text-stone-500 hover:text-red-400 transition-colors duration-200 cursor-pointer"
+                title="Reset round (R)"
+              >
+                Reset <span className="text-stone-600">(R)</span>
+              </button>
             </>
           )}
         </div>
       )}
 
-      {/* Street completed — show actions */}
+      {/* Street completed — show quick-edit and actions */}
       {completed && !savedToast && (
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-stone-400">
-            {STREET_LABELS[street]} entered.
-          </span>
-          {isLastStreet ? (
+        <div className="space-y-2">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-stone-400">Pot</span>
+              <input
+                type="number"
+                value={potSize || ""}
+                onChange={(e) => setPotSize(Number(e.target.value))}
+                className="w-20 bg-surface border border-surface-raised rounded px-2 py-1 text-sm font-mono focus:outline-none focus:border-gold transition-colors duration-200"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-stone-400">Bet</span>
+              <input
+                type="number"
+                value={betToCall || ""}
+                onChange={(e) => setBetToCall(Number(e.target.value))}
+                className="w-20 bg-surface border border-surface-raised rounded px-2 py-1 text-sm font-mono focus:outline-none focus:border-gold transition-colors duration-200"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-stone-400">Players</span>
+              <input
+                type="number"
+                min={2}
+                max={9}
+                value={numPlayers}
+                onChange={(e) => setNumPlayers(Number(e.target.value))}
+                className="w-14 bg-surface border border-surface-raised rounded px-2 py-1 text-sm font-mono focus:outline-none focus:border-gold transition-colors duration-200"
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {isLastStreet ? (
+              <button
+                onClick={handleSaveRound}
+                className="px-4 py-2 bg-emerald-700 text-white rounded-lg text-sm font-semibold hover:bg-emerald-600 transition-colors duration-200 cursor-pointer"
+              >
+                Save Round <span className="text-xs opacity-70">(Enter)</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => nextStreet()}
+                className="px-4 py-2 bg-gold text-stone-900 rounded-lg text-sm font-semibold hover:bg-gold-400 transition-colors duration-200 cursor-pointer"
+              >
+                Next Street <span className="text-xs opacity-70">(Enter)</span>
+              </button>
+            )}
             <button
-              onClick={handleSaveRound}
-              className="px-4 py-2 bg-emerald-700 text-white rounded-lg text-sm font-semibold hover:bg-emerald-600 transition-colors duration-200 cursor-pointer"
+              onClick={() => foldRound()}
+              className="px-3 py-2 bg-surface-raised text-stone-300 rounded-lg text-sm hover:bg-surface-hover transition-colors duration-200 cursor-pointer"
             >
-              Save Round <span className="text-xs opacity-70">(Enter)</span>
+              Fold / Reset <span className="text-xs opacity-70">(R)</span>
             </button>
-          ) : (
-            <button
-              onClick={() => nextStreet()}
-              className="px-4 py-2 bg-gold text-stone-900 rounded-lg text-sm font-semibold hover:bg-gold-400 transition-colors duration-200 cursor-pointer"
-            >
-              Next Street <span className="text-xs opacity-70">(N)</span>
-            </button>
-          )}
-          <button
-            onClick={() => foldRound()}
-            className="px-3 py-2 bg-surface-raised text-stone-300 rounded-lg text-sm hover:bg-surface-hover transition-colors duration-200 cursor-pointer"
-          >
-            Fold / Reset <span className="text-xs opacity-70">(R)</span>
-          </button>
+          </div>
         </div>
       )}
 
