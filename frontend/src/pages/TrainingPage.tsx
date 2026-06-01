@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useTrainingStore } from "../store/trainingStore";
 import { useTraining } from "../hooks/useTraining";
 import { formatCard } from "../utils/cardUtils";
@@ -129,6 +129,177 @@ function FeedbackDisplay() {
           <span className="ml-2 text-gold font-semibold">Graduated!</span>
         )}
       </p>
+    </div>
+  );
+}
+
+const GRAD_THRESHOLDS: Record<string, number> = {
+  outs: 90, rule_of_2_4: 85, pot_odds: 85,
+  the_decision: 80, spr_commitment: 80, bluff_math: 80,
+};
+const REQUIRED_ATTEMPTS: Record<string, number> = {
+  outs: 50, rule_of_2_4: 50, pot_odds: 50,
+  the_decision: 30, spr_commitment: 30, bluff_math: 30,
+};
+
+const SKILL_ORDER = ["outs", "rule_of_2_4", "pot_odds", "the_decision", "spr_commitment", "bluff_math"];
+
+function GraduationTracker() {
+  const skillProgress = useTrainingStore((s) => s.skillProgress);
+
+  const progressMap = useMemo(() => {
+    const map = new Map<string, typeof skillProgress[number]>();
+    for (const p of skillProgress) {
+      map.set(p.skill, p);
+    }
+    return map;
+  }, [skillProgress]);
+
+  return (
+    <div className="bg-surface rounded-lg p-4 border border-surface-raised">
+      <h3 className="text-stone-200 font-semibold mb-4">Graduation Tracker</h3>
+      {skillProgress.length === 0 ? (
+        <p className="text-stone-400 text-sm">Loading...</p>
+      ) : (
+        <div className="space-y-3">
+          {SKILL_ORDER.map((skill) => {
+            const progress = progressMap.get(skill);
+            const totalAttempts = progress?.total_attempts ?? 0;
+            const accuracy = progress?.current_accuracy ?? 0;
+            const status = progress?.status ?? "active";
+            const streakDays = progress?.streak_days ?? 0;
+            const required = REQUIRED_ATTEMPTS[skill] ?? 50;
+            const threshold = GRAD_THRESHOLDS[skill] ?? 80;
+            const progressPct = Math.min((totalAttempts / required) * 100, 100);
+
+            let accuracyColorClass: string;
+            if (accuracy >= threshold) {
+              accuracyColorClass = "text-emerald-400";
+            } else if (accuracy >= threshold - 10) {
+              accuracyColorClass = "text-amber-400";
+            } else {
+              accuracyColorClass = "text-red-400";
+            }
+
+            let badgeClass: string;
+            let badgeLabel: string;
+            if (status === "graduated") {
+              badgeClass = "bg-emerald-800 text-emerald-200";
+              badgeLabel = "Graduated";
+            } else if (status === "locked") {
+              badgeClass = "bg-surface-raised text-stone-500";
+              badgeLabel = "Locked";
+            } else {
+              badgeClass = "bg-gold-700 text-stone-100";
+              badgeLabel = "Active";
+            }
+
+            return (
+              <div key={skill} className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-stone-300">{SKILL_LABELS[skill] ?? skill}</span>
+                  <div className="flex items-center gap-3">
+                    <span className={`font-mono text-sm ${accuracyColorClass}`}>
+                      {accuracy.toFixed(0)}%
+                    </span>
+                    <span className={`text-xs rounded px-1.5 py-0.5 ${badgeClass}`}>
+                      {badgeLabel}
+                    </span>
+                    <span className="font-mono text-sm text-amber-400">
+                      {streakDays >= 3 ? `${streakDays}d 🔥` : `${streakDays}d`}
+                    </span>
+                  </div>
+                </div>
+                <div className="h-2 rounded-full bg-surface-raised overflow-hidden">
+                  <div
+                    className="h-2 rounded-full bg-gold transition-all duration-300"
+                    style={{ width: `${progressPct}%` }}
+                  />
+                </div>
+                <p className="text-xs text-stone-500">
+                  {totalAttempts} / {required} attempts
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DrillHistory() {
+  const [expanded, setExpanded] = useState(false);
+  const drillHistory = useTrainingStore((s) => s.drillHistory);
+  const setDrillHistory = useTrainingStore((s) => s.setDrillHistory);
+  const { fetchHistory } = useTraining();
+  const [loading, setLoading] = useState(false);
+
+  const handleToggle = async () => {
+    const willExpand = !expanded;
+    setExpanded(willExpand);
+    if (willExpand && drillHistory.length === 0) {
+      setLoading(true);
+      try {
+        const data = await fetchHistory(undefined, 20);
+        if (data) setDrillHistory(data);
+      } catch {
+        // Fetch failed silently
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  const formatDate = (dateStr: string | null): string => {
+    if (!dateStr) return "-";
+    const d = new Date(dateStr);
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  };
+
+  return (
+    <div className="bg-surface rounded-lg border border-surface-raised">
+      <button
+        onClick={handleToggle}
+        className="w-full flex items-center justify-between p-4 cursor-pointer"
+      >
+        <h3 className="text-stone-200 font-semibold">Recent Drills</h3>
+        <span className="text-stone-400 text-sm">{expanded ? "▲" : "▼"}</span>
+      </button>
+      {expanded && (
+        <div className="px-4 pb-4">
+          {loading ? (
+            <p className="text-stone-400 text-sm">Loading...</p>
+          ) : drillHistory.length === 0 ? (
+            <p className="text-stone-400 text-sm">No drill history yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {drillHistory.map((attempt) => {
+                const correctClass = attempt.is_correct
+                  ? "bg-emerald-900 text-emerald-200"
+                  : "bg-red-900 text-red-200";
+                const correctLabel = attempt.is_correct ? "Correct" : "Incorrect";
+
+                return (
+                  <div
+                    key={attempt.id}
+                    className="flex items-center justify-between text-sm bg-surface-raised rounded px-3 py-2"
+                  >
+                    <span className="text-stone-300">{SKILL_LABELS[attempt.skill] ?? attempt.skill}</span>
+                    <div className="flex items-center gap-3">
+                      <span className={`text-xs rounded px-1.5 py-0.5 ${correctClass}`}>
+                        {correctLabel}
+                      </span>
+                      <span className="font-mono text-stone-400">{attempt.response_time_ms}ms</span>
+                      <span className="text-stone-500 text-xs">{formatDate(attempt.created_at)}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -475,6 +646,9 @@ export function TrainingPage() {
           </button>
         </>
       )}
+
+      <GraduationTracker />
+      <DrillHistory />
     </div>
   );
 }
