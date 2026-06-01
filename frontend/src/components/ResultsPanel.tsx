@@ -1,13 +1,36 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useGameStore } from "../store/gameStore";
+import { useTrainingStore } from "../store/trainingStore";
 import { usePokerCalculator } from "../hooks/usePokerCalculator";
 import { MetricTooltip } from "./MetricTooltip";
 import { SUIT_SYMBOLS, SUIT_COLORS } from "../utils/cardUtils";
+
+const METRIC_SKILL_MAP: Record<string, string> = {
+  ev: "the_decision",
+  pot_odds: "pot_odds",
+  pot_odds_ratio: "pot_odds",
+  equity_required: "pot_odds",
+  rule_of_2_4: "rule_of_2_4",
+  spr: "spr_commitment",
+  mdf: "bluff_math",
+  bluff_break_even: "bluff_math",
+  outs: "outs",
+};
 
 export function ResultsPanel() {
   usePokerCalculator();
 
   const { results, isLoading, error, holeCards } = useGameStore();
+  const { skillProgress, setSkillProgress } = useTrainingStore();
+
+  useEffect(() => {
+    if (skillProgress.length === 0) {
+      fetch("/api/drills/progress")
+        .then((r) => (r.ok ? r.json() : []))
+        .then((data) => setSkillProgress(data))
+        .catch(() => {});
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (holeCards.length < 2) {
     return (
@@ -122,7 +145,16 @@ export function ResultsPanel() {
 
 function OutsCard({ outs }: { outs: import("../types").OutsData }) {
   const [expanded, setExpanded] = useState(false);
+  const [revealed, setRevealed] = useState(false);
+  const { mentalMathMode, graduatedSkills } = useTrainingStore();
+  const graduated = graduatedSkills();
   const hasOuts = outs.total_outs > 0;
+
+  const shouldBlur = mentalMathMode && graduated.has("outs") && !revealed;
+
+  useEffect(() => {
+    setRevealed(false);
+  }, [outs.total_outs]);
 
   return (
     <div className="bg-surface rounded-lg p-3">
@@ -130,30 +162,41 @@ function OutsCard({ outs }: { outs: import("../types").OutsData }) {
         Outs
         <MetricTooltip metricKey="outs" />
       </div>
-      <div className="text-lg font-bold font-mono text-stone-100">{outs.total_outs}</div>
-      <div className="text-[10px] text-stone-500 mt-0.5">
-        {outs.draws.map((d) => d.draw_type.replace(/_/g, " ")).join(", ") || "none"}
+      <div
+        className={`text-lg font-bold font-mono text-stone-100 transition-all duration-200 ${shouldBlur ? "blur-sm cursor-pointer select-none" : ""}`}
+        onClick={shouldBlur ? () => setRevealed(true) : undefined}
+      >
+        {outs.total_outs}
       </div>
-      {hasOuts && (
+      {shouldBlur ? (
+        <div className="text-[10px] text-stone-500 mt-0.5">Calculate first, then tap</div>
+      ) : (
         <>
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="mt-1.5 text-[10px] text-gold hover:text-gold-300 flex items-center gap-1 cursor-pointer transition-colors duration-200"
-          >
-            <span className={`transition-transform duration-200 ${expanded ? "rotate-90" : ""}`}>&#9654;</span>
-            {expanded ? "Hide" : "Show"} out cards
-          </button>
-          {expanded && (
-            <div className="mt-1.5 flex flex-wrap gap-1">
-              {outs.outs_cards.map((card) => (
-                <span
-                  key={card}
-                  className={`inline-flex items-center gap-0.5 text-[10px] font-mono px-1 py-0.5 rounded bg-surface-raised ${SUIT_COLORS[card[1]]}`}
-                >
-                  {card[0]}{SUIT_SYMBOLS[card[1]]}
-                </span>
-              ))}
-            </div>
+          <div className="text-[10px] text-stone-500 mt-0.5">
+            {outs.draws.map((d) => d.draw_type.replace(/_/g, " ")).join(", ") || "none"}
+          </div>
+          {hasOuts && (
+            <>
+              <button
+                onClick={() => setExpanded(!expanded)}
+                className="mt-1.5 text-[10px] text-gold hover:text-gold-300 flex items-center gap-1 cursor-pointer transition-colors duration-200"
+              >
+                <span className={`transition-transform duration-200 ${expanded ? "rotate-90" : ""}`}>&#9654;</span>
+                {expanded ? "Hide" : "Show"} out cards
+              </button>
+              {expanded && (
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {outs.outs_cards.map((card) => (
+                    <span
+                      key={card}
+                      className={`inline-flex items-center gap-0.5 text-[10px] font-mono px-1 py-0.5 rounded bg-surface-raised ${SUIT_COLORS[card[1]]}`}
+                    >
+                      {card[0]}{SUIT_SYMBOLS[card[1]]}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </>
       )}
@@ -170,6 +213,17 @@ interface MetricCardProps {
 }
 
 function MetricCard({ label, value, metricKey, subtitle, highlight }: MetricCardProps) {
+  const [revealed, setRevealed] = useState(false);
+  const { mentalMathMode, graduatedSkills } = useTrainingStore();
+  const graduated = graduatedSkills();
+
+  useEffect(() => {
+    setRevealed(false);
+  }, [value]);
+
+  const skillKey = METRIC_SKILL_MAP[metricKey];
+  const shouldBlur = mentalMathMode && !!skillKey && graduated.has(skillKey) && !revealed;
+
   const highlightClass =
     highlight === "green"
       ? "text-emerald-400"
@@ -183,8 +237,18 @@ function MetricCard({ label, value, metricKey, subtitle, highlight }: MetricCard
         {label}
         <MetricTooltip metricKey={metricKey} />
       </div>
-      <div className={`text-lg font-bold font-mono ${highlightClass}`}>{value}</div>
-      {subtitle && <div className="text-[10px] text-stone-500 mt-0.5">{subtitle}</div>}
+      <div
+        className={`text-lg font-bold font-mono ${highlightClass} transition-all duration-200 ${shouldBlur ? "blur-sm cursor-pointer select-none" : ""}`}
+        onClick={shouldBlur ? () => setRevealed(true) : undefined}
+      >
+        {value}
+      </div>
+      {shouldBlur && (
+        <div className="text-[10px] text-stone-500 mt-0.5">Calculate first, then tap</div>
+      )}
+      {!shouldBlur && subtitle && (
+        <div className="text-[10px] text-stone-500 mt-0.5">{subtitle}</div>
+      )}
     </div>
   );
 }
