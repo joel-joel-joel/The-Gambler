@@ -3,6 +3,7 @@ import { GameInputs } from "./components/GameInputs";
 import { QuickEntryBar } from "./components/QuickEntryBar";
 import { ResultsPanel } from "./components/ResultsPanel";
 import { CheatSheet } from "./components/CheatSheet";
+import { RoundHistory } from "./components/RoundHistory";
 import { ChatSidebar } from "./components/ChatSidebar";
 import { UndoBanner } from "./components/UndoBanner";
 import { SessionBar } from "./components/SessionBar";
@@ -21,6 +22,7 @@ export default function App() {
           <GameInputs />
           <ResultsPanel />
           <CheatSheet />
+          <RoundHistory />
         </main>
         <aside className="hidden md:block w-80 flex-shrink-0">
           <ChatSidebar />
