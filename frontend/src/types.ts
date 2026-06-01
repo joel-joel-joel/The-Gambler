@@ -100,3 +100,16 @@ export interface RoundData {
   notes: string | null;
   created_at: string | null;
 }
+
+export interface OpponentData {
+  id: number;
+  name: string;
+  user_id: string;
+  tendency_tags: string[];
+  vpip_estimate: number | null;
+  pfr_estimate: number | null;
+  notes: string;
+  key_hands: string[];
+  created_at: string | null;
+  updated_at: string | null;
+}
