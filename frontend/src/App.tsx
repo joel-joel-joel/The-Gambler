@@ -9,6 +9,7 @@ import { UndoBanner } from "./components/UndoBanner";
 import { SessionBar } from "./components/SessionBar";
 import { PlayersPage } from "./pages/PlayersPage";
 import { MyGamePage } from "./pages/MyGamePage";
+import { TrainingPage } from "./pages/TrainingPage";
 import { useNavigationStore } from "./store/navigationStore";
 import type { TabId } from "./types";
 
@@ -16,6 +17,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "calculator", label: "Calculator" },
   { id: "players", label: "Players" },
   { id: "myGame", label: "My Game" },
+  { id: "training", label: "Training" },
 ];
 
 function TabNav() {
@@ -57,6 +59,8 @@ function MainContent() {
       return <PlayersPage />;
     case "myGame":
       return <MyGamePage />;
+    case "training":
+      return <TrainingPage />;
   }
 }
 
