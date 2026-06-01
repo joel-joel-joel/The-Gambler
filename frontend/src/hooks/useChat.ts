@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useChatStore } from "../store/chatStore";
 import { useGameStore } from "../store/gameStore";
+import { useSessionStore } from "../store/sessionStore";
 import type { ChatMessage } from "../types";
 
 export function useChat() {
@@ -48,6 +49,7 @@ export function useChat() {
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
 
       const gameState = useGameStore.getState();
+      const rounds = useSessionStore.getState().rounds;
 
       const userMsg: ChatMessage = {
         id: crypto.randomUUID(),
@@ -73,7 +75,14 @@ export function useChat() {
             your_stack: gameState.yourStack,
             villain_stack: gameState.villainStack,
           },
-          session_rounds: [],
+          session_rounds: rounds.map((r) => ({
+            round_number: r.round_number,
+            hole_cards: r.hole_cards,
+            result: r.result,
+            profit: r.profit,
+            pot_size: r.pot_size,
+            position: r.position,
+          })),
         })
       );
     },
