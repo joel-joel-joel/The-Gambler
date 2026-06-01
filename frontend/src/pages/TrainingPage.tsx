@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useTrainingStore } from "../store/trainingStore";
 import { useTraining } from "../hooks/useTraining";
+import { SessionReviewSection } from "../components/SessionReviewSection";
 import { formatCard } from "../utils/cardUtils";
 
 const SKILL_LABELS: Record<string, string> = {
@@ -648,6 +649,7 @@ export function TrainingPage() {
       )}
 
       <GraduationTracker />
+      <SessionReviewSection />
       <DrillHistory />
     </div>
   );
