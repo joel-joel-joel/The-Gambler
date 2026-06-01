@@ -9,6 +9,7 @@ from app.services.ai_service import chat_with_ai
 from app.services.round_service import list_rounds
 from app.services.pid_service import get_pid, save_pid
 from app.services.leak_service import generate_leaks_from_session
+from app.services.drill_service import get_all_progress
 
 
 def build_session_stats(db: Session, session_id: int) -> dict:
@@ -70,17 +71,33 @@ async def generate_pid_update(
     stats = build_session_stats(db, session_id)
     rounds_data = _rounds_to_summary_data(db, session_id)
 
+    drill_progress = get_all_progress(db)
+    drill_section = ""
+    if any(p["total_attempts"] > 0 for p in drill_progress):
+        lines = ["MENTAL MATH PROGRESS:"]
+        for p in drill_progress:
+            if p["total_attempts"] > 0:
+                lines.append(
+                    f"- {p['skill']}: {p['status'].upper()} "
+                    f"({p['current_accuracy']*100:.0f}% accuracy, "
+                    f"avg {p['avg_response_time_ms']/1000:.1f}s, "
+                    f"{p['total_attempts']} attempts)"
+                )
+        drill_section = "\n".join(lines) + "\n\n"
+
     prompt = (
         "You are updating a poker player's intelligence document.\n\n"
         f"CURRENT DOCUMENT:\n{current_pid}\n\n"
         f"NEW SESSION DATA ({stats['total_rounds']} rounds):\n{rounds_data}\n\n"
+        f"{drill_section}"
         "INSTRUCTIONS:\n"
         "1. Update all statistics (sessions played, profit, win rate, etc.)\n"
         "2. Re-evaluate leaks — are any improving? New ones emerging?\n"
         "3. Update tendencies if the data shows change\n"
         "4. Add a session note (2-3 sentences max)\n"
         "5. Update the improvement roadmap\n"
-        "6. Be specific with numbers.\n\n"
+        "6. If mental math progress data is provided, include a 'Mental Math Progress' section\n"
+        "7. Be specific with numbers.\n\n"
         "Return the complete updated document."
     )
 
