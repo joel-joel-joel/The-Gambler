@@ -71,3 +71,30 @@ export interface ChatMessage {
   boardUpdate: BoardUpdate | null;
   timestamp: number;
 }
+
+export interface SessionData {
+  id: number;
+  user_id: string;
+  is_active: boolean;
+  started_at: string | null;
+  ended_at: string | null;
+  total_rounds: number;
+  total_profit: number;
+  ai_summary: string | null;
+}
+
+export interface RoundData {
+  id: number;
+  session_id: number;
+  round_number: number;
+  hole_cards: string[];
+  community_cards: string[];
+  num_players: number;
+  position: string | null;
+  streets: unknown[];
+  result: string | null;
+  profit: number;
+  pot_size: number;
+  notes: string | null;
+  created_at: string | null;
+}
