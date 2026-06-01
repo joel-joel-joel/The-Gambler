@@ -8,6 +8,7 @@ from app.models.database import SessionRecord
 from app.services.ai_service import chat_with_ai
 from app.services.round_service import list_rounds
 from app.services.pid_service import get_pid, save_pid
+from app.services.leak_service import generate_leaks_from_session
 
 
 def build_session_stats(db: Session, session_id: int) -> dict:
@@ -99,6 +100,8 @@ async def finalize_session(db: Session, session_id: int, user_id: str = "default
     updated_pid = await generate_pid_update(db, session_id, current_pid)
     save_pid(db, user_id, updated_pid, trigger="session_end", session_id=session_id)
 
+    leaks = await generate_leaks_from_session(db, session_id, user_id)
+
     session_rec = db.query(SessionRecord).filter(SessionRecord.id == session_id).first()
     if session_rec:
         session_rec.total_rounds = stats["total_rounds"]
@@ -110,4 +113,5 @@ async def finalize_session(db: Session, session_id: int, user_id: str = "default
         "stats": stats,
         "summary": summary,
         "pid_updated": True,
+        "leaks_generated": len(leaks),
     }
