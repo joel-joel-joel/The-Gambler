@@ -8,6 +8,7 @@ from app.models.database import init_db
 from app.routers.calculate import router as calculate_router
 from app.routers.chat import router as chat_router
 from app.routers.pid import router as pid_router
+from app.routers.rounds import router as rounds_router
 from app.routers.sessions import router as sessions_router
 
 
@@ -30,6 +31,7 @@ app.add_middleware(
 app.include_router(calculate_router)
 app.include_router(chat_router)
 app.include_router(pid_router)
+app.include_router(rounds_router)
 app.include_router(sessions_router)
 
 
